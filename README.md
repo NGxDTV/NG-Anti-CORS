@@ -19,9 +19,8 @@
 
 ## Installation 📥
 
-> **Note:** This extension is not yet available in the Chrome Web Store as it's new and currently under review. We'll update this README once it's approved and published.
-
-1. **Chrome Web Store** (recommended - coming soon):
+1. **Chrome Web Store** (recommended):
+   - Download the [latest Chrome / Opera release](https://chromewebstore.google.com/detail/ng-anti-cors/amlaedkdelmhjggadmigdcihfalbgpha)
    - Once approved, you'll be able to find it by searching for "NG-Anti-CORS"
    - Click "Add" and confirm the installation
 
