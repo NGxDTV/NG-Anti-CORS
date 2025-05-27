@@ -1,17 +1,17 @@
-# NG-Anti-CORS 1.0 🛡️ 
+# NG-Anti-CORS 1.1 🛡️ 
 
-## The Ultimate CORS Blocker for Developers 🚀
+## The Ultimate CORS Enabler for Developers 🚀
 
-![Version](https://img.shields.io/badge/version-1.0-blue)
+![Version](https://img.shields.io/badge/version-1.1-blue)
 ![Chrome](https://img.shields.io/badge/Chrome-supported-green)
 ![Opera](https://img.shields.io/badge/Opera-supported-green)
 
-**NG-Anti-CORS** is a powerful browser extension that bypasses CORS (Cross-Origin Resource Sharing) restrictions with just one click. The perfect developer tool for testing APIs and debugging applications in local environments! 🔧
+**NG-Anti-CORS** is a powerful browser extension that allows CORS (Cross-Origin Resource Sharing) requests with just one click. The perfect developer tool for testing APIs and debugging applications in local environments! 🔧
 
 ## Features ✨
 
 - **Easy to Use** 🖱️ - One-click activation for any domain
-- **Domain-specific Control** 🌐 - Enable CORS blocking only for specific domains
+- **Domain-specific Control** 🌐 - Enable CORS requests only for specific domains
 - **Visual Indicators** 💡 - Color-coded icons show current status
 - **Save Settings** 💾 - Retain your preferences even after browser restart
 - **Customizable Notifications** 🔔 - Configure how and when notifications appear
@@ -38,7 +38,9 @@
 2. Click on the NG-Anti-CORS icon in the toolbar
 3. Enable the toggle for the current domain
 4. Optional: Check "Remember this setting for browser restart"
-5. Reload the page - CORS restrictions should now be bypassed!
+5. Reload the page - CORS requests are now allowed!
+
+> **Note:** When the extension is not enabled for a domain, it doesn't modify the browser's default CORS behavior at all.
 
 ## Adjusting Settings ⚙️
 
@@ -63,9 +65,10 @@ This plugin is especially useful for:
 **Plugin not working?**
 
 - Make sure the plugin is activated
-- Check if CORS blocking is enabled for the current domain
+- Check if CORS allowing is enabled for the current domain
 - Completely reload the page (CTRL+F5)
 - Check for errors in the developer tools (F12)
+- Verify that the site is actually experiencing CORS issues that need to be bypassed
 
 ## Privacy and Security 🔒
 
@@ -76,6 +79,15 @@ This plugin is especially useful for:
 - Only stores your preferences for enabled domains
 
 ⚠️ **Security Notice**: This plugin is intended for development and testing purposes. Disable it when visiting sensitive websites as it affects the browser's security mechanisms.
+
+## Version History 📝
+
+### Version 1.1
+- **Critical Fix**: Corrected the core behavior of the extension. Previously, the extension was incorrectly blocking CORS when disabled. Now it correctly does not modify browser behavior when disabled.
+- **Improved UI Labels**: Updated status messages and notifications to accurately reflect the extension's functionality
+
+### Version 1.0
+- Initial release
 
 ## Contributing 🤝
 

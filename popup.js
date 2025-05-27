@@ -1,4 +1,3 @@
-
 document.addEventListener('DOMContentLoaded', init);
 
 let currentDomain = '';
@@ -8,106 +7,26 @@ let settings = {
     notificationDuration: 5
 };
 
-async function init() {
-    
-    await loadSettings();
-    
-    setupTabs();
-    
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tabs.length > 0) {
-        const activeTab = tabs[0];
-        currentDomain = extractDomain(activeTab.url);
-
-        if (currentDomain) {
-            document.getElementById('current-domain').textContent = currentDomain;
-
-            const response = await new Promise((resolve) => {
-                chrome.runtime.sendMessage({ action: 'getDomainState', domain: currentDomain }, resolve);
-            });
-           
-            const toggle = document.getElementById('cors-toggle');
-
-            if (response && response.state !== undefined) {
-                
-                toggle.checked = response.state;
-                
-                if (response.isPersistent) {
-                    enabledDomains[currentDomain] = response.state;
-                }
-                
-                document.getElementById('remember-setting').checked = response.isPersistent;
-            } else {
-                
-                toggle.checked = enabledDomains[currentDomain] || false;
-                document.getElementById('remember-setting').checked = enabledDomains[currentDomain] !== undefined;
-            }
-
-            updateToggleStatus(toggle.checked);
-           
-            toggle.addEventListener('change', toggleCorsBlocking);
-         
-            document.getElementById('remember-setting').addEventListener('change', async function () {
-                const remember = this.checked;
-                const isEnabled = toggle.checked;
-
-                if (isEnabled) {
-                    
-                    const response = await new Promise((resolve) => {
-                        chrome.runtime.sendMessage({
-                            action: 'toggleCors',
-                            domain: currentDomain,
-                            enabled: isEnabled,
-                            remember: remember
-                        }, resolve);
-                    });
-
-                    if (response && response.success) {
-                        if (remember) {
-                            
-                            enabledDomains[currentDomain] = isEnabled;
-                        } else {             
-                            chrome.storage.local.get(['enabledDomains'], async (result) => {
-                                const savedDomains = result.enabledDomains || {};
-                                if (savedDomains[currentDomain] !== undefined) {
-                                    delete savedDomains[currentDomain];
-                                    await chrome.storage.local.set({ enabledDomains: savedDomains });
-                                }
-                            });
-                        }
-                        
-                        populateDomainsList();
-                    }
-                }
-            });
-        }
-    }
-
-    populateDomainsList();    
-    setupSettingsForm();
-    
-    document.getElementById('save-settings').addEventListener('click', saveSettings);
-}
-
 async function loadSettings() {
-    const result = await chrome.storage.local.get(['enabledDomains', 'settings']); 
-    
-    if (result.enabledDomains) {
-        enabledDomains = result.enabledDomains;
+    const result = await chrome.storage.local.get(['enabledDomains', 'settings']);
+
+    if (result && result.enabledDomains && typeof result.enabledDomains === 'object') {
+        enabledDomains = result.enabledDomains || {};
+    } else {
+        enabledDomains = {};
     }
-    
     try {
         const tabs = await chrome.tabs.query({});
         for (const tab of tabs) {
-            if (tab.url) {
+            if (tab && tab.url) {
                 const domain = extractDomain(tab.url);
-                if (domain && !enabledDomains.hasOwnProperty(domain)) {
+                if (domain && enabledDomains && typeof enabledDomains === 'object' && !enabledDomains.hasOwnProperty(domain)) {
                     const response = await new Promise((resolve) => {
                         chrome.runtime.sendMessage({ action: 'getDomainState', domain }, resolve);
                     });
 
                     if (response && response.state) {
-                        
+
                         enabledDomains[domain] = true;
                         console.log(`Added temporary domain to cache: ${domain}`);
                     }
@@ -122,30 +41,158 @@ async function loadSettings() {
         settings = { ...settings, ...result.settings };
     }
 
-    document.getElementById('show-notification').checked = settings.showNotification;
-    document.getElementById('notification-duration').value = settings.notificationDuration;
+    const showNotification = document.getElementById('show-notification');
+    const notificationDuration = document.getElementById('notification-duration');
+
+    if (showNotification) showNotification.checked = settings.showNotification;
+    if (notificationDuration) notificationDuration.value = settings.notificationDuration;
 }
 
 function setupTabs() {
     const tabs = document.querySelectorAll('.tab');
     const contents = document.querySelectorAll('.tab-content');
 
+    if (!tabs || !contents) return;
+
     tabs.forEach(tab => {
+        if (!tab) return;
         tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            contents.forEach(c => c.classList.remove('active'));
+            tabs.forEach(t => {
+                if (t) t.classList.remove('active');
+            });
+            contents.forEach(c => {
+                if (c) c.classList.remove('active');
+            });
 
             tab.classList.add('active');
 
-            const contentId = `content-${tab.id.split('-')[1]}`;
-            document.getElementById(contentId).classList.add('active');
+            if (tab.id) {
+                const contentId = `content-${tab.id.split('-')[1]}`;
+                const contentElement = document.getElementById(contentId);
+                if (contentElement) {
+                    contentElement.classList.add('active');
+                }
+            }
         });
     });
 }
 
+function updateToggleStatus(enabled) {
+    const statusElement = document.getElementById('toggle-status');
+    if (statusElement) {
+        statusElement.textContent = enabled ? 'CORS allowed for this domain' : 'Browser CORS behavior unchanged';
+        statusElement.style.color = enabled ? '#4CAF50' : '#f44336';
+    }
+}
+
+function extractDomain(url) {
+    if (!url) return '';
+    try {
+        const hostname = new URL(url).hostname;
+
+        const parts = hostname.split('.');
+        if (parts.length > 2) {
+            return parts.slice(-2).join('.');
+        }
+        return hostname;
+    } catch (e) {
+        console.error('Error extracting domain:', e);
+        return '';
+    }
+}
+
+async function init() {
+    await loadSettings();
+    setupTabs();
+
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs && tabs.length > 0) {
+        const activeTab = tabs[0];
+        if (activeTab && activeTab.url) {
+            currentDomain = extractDomain(activeTab.url);
+        }
+
+        if (currentDomain) {
+            const domainElement = document.getElementById('current-domain');
+            if (domainElement) {
+                domainElement.textContent = currentDomain;
+
+                const response = await new Promise((resolve) => {
+                    chrome.runtime.sendMessage({ action: 'getDomainState', domain: currentDomain }, resolve);
+                });
+
+                const toggle = document.getElementById('cors-toggle');
+                const rememberSetting = document.getElementById('remember-setting');
+
+                if (!toggle) return;
+
+                if (response && response.state !== undefined) {
+                    toggle.checked = response.state;
+
+                    if (response.isPersistent) {
+                        enabledDomains[currentDomain] = response.state;
+                    }
+
+                    if (rememberSetting) rememberSetting.checked = response.isPersistent;
+                } else {
+                    toggle.checked = enabledDomains[currentDomain] || false;
+                    if (rememberSetting) rememberSetting.checked = enabledDomains[currentDomain] !== undefined;
+                }
+
+                updateToggleStatus(toggle.checked);
+
+                toggle.addEventListener('change', toggleCorsBlocking);
+
+                const rememberCheckbox = document.getElementById('remember-setting');
+                if (rememberCheckbox) {
+                    rememberCheckbox.addEventListener('change', async function () {
+                        const remember = this.checked;
+                        const isEnabled = toggle.checked;
+
+                        if (isEnabled) {
+                            const response = await new Promise((resolve) => {
+                                chrome.runtime.sendMessage({
+                                    action: 'toggleCors',
+                                    domain: currentDomain,
+                                    enabled: isEnabled,
+                                    remember: remember
+                                }, resolve);
+                            });
+
+                            if (response && response.success) {
+                                if (remember) {
+                                    enabledDomains[currentDomain] = isEnabled;
+                                } else {
+                                    chrome.storage.local.get(['enabledDomains'], async (result) => {
+                                        const savedDomains = result.enabledDomains || {};
+                                        if (savedDomains[currentDomain] !== undefined) {
+                                            delete savedDomains[currentDomain];
+                                            await chrome.storage.local.set({ enabledDomains: savedDomains });
+                                        }
+                                    });
+                                }
+
+                                populateDomainsList();
+                            }
+                        }
+                    });
+                }
+            }
+
+            populateDomainsList();
+            setupSettingsForm();
+
+            const saveSettingsButton = document.getElementById('save-settings');
+            if (saveSettingsButton) {
+                saveSettingsButton.addEventListener('click', saveSettings);
+            }
+        }
+    }
+}
+
 async function toggleCorsBlocking() {
     const enabled = this.checked;
-    const remember = document.getElementById('remember-setting').checked;    
+    const remember = document.getElementById('remember-setting').checked;
     const toggle = document.getElementById('cors-toggle');
 
     toggle.disabled = true;
@@ -160,10 +207,10 @@ async function toggleCorsBlocking() {
                 remember: remember
             }, resolve);
         });
-        
+
         if (!response || !response.success) {
             console.error('Failed to toggle CORS blocking:', response?.error);
-            
+
             toggle.checked = !enabled;
             updateToggleStatus(!enabled);
         } else {
@@ -174,12 +221,12 @@ async function toggleCorsBlocking() {
             } else {
                 delete enabledDomains[currentDomain];
             }
-   
+
             populateDomainsList();
         }
     } catch (error) {
         console.error('Error toggling CORS blocking:', error);
-        
+
         toggle.checked = !enabled;
         updateToggleStatus(!enabled);
     } finally {
@@ -187,46 +234,41 @@ async function toggleCorsBlocking() {
     }
 }
 
-function updateToggleStatus(enabled) {
-    const statusElement = document.getElementById('toggle-status');
-    statusElement.textContent = enabled ? 'CORS blocking is ON' : 'CORS blocking is OFF';
-    statusElement.style.color = enabled ? '#4CAF50' : '#f44336';
-}
-
 async function populateDomainsList() {
     const domainsList = document.getElementById('domains-list');
+    if (!domainsList) return;
+
     domainsList.innerHTML = '';
 
-    try {    
+    try {
         const storageResult = await chrome.storage.local.get(['enabledDomains']);
-        const savedDomains = storageResult.enabledDomains || {};        
+        const savedDomains = storageResult && storageResult.enabledDomains ? storageResult.enabledDomains : {};
         const tabs = await chrome.tabs.query({});
         const activeDomains = new Set();
-        
         for (const tab of tabs) {
-            if (tab.url) {
+            if (tab && tab.url) {
                 const domain = extractDomain(tab.url);
                 if (domain) {
                     activeDomains.add(domain);
                 }
             }
         }
-        
+
         const allDomains = { ...savedDomains };
-        
+
         for (const domain of activeDomains) {
-            
+
             if (savedDomains[domain] !== undefined) continue;
-            
+
             const response = await new Promise((resolve) => {
                 chrome.runtime.sendMessage({ action: 'getDomainState', domain }, resolve);
             });
-            
+
             if (response && response.state === true) {
                 allDomains[domain] = true;
             }
         }
-        
+
         for (const domain in enabledDomains) {
             if (!allDomains.hasOwnProperty(domain)) {
                 allDomains[domain] = enabledDomains[domain];
@@ -241,7 +283,7 @@ async function populateDomainsList() {
             domainsList.appendChild(row);
             return;
         }
-        
+
         domains.sort();
 
         for (const domain of domains) {
@@ -249,30 +291,30 @@ async function populateDomainsList() {
             const isPersisted = domain in savedDomains;
 
             const row = document.createElement('tr');
-            
+
             const domainCell = document.createElement('td');
             domainCell.textContent = domain;
             row.appendChild(domainCell);
-            
+
             const startupCell = document.createElement('td');
             const startupCheckbox = document.createElement('input');
             startupCheckbox.type = 'checkbox';
             startupCheckbox.checked = isPersisted && enabled;
             startupCheckbox.addEventListener('change', async function () {
-                if (this.checked) { 
+                if (this.checked) {
                     savedDomains[domain] = true;
                     await chrome.storage.local.set({ enabledDomains: savedDomains });
-                    
+
                     enabledDomains[domain] = true;
-                    
+
                     if (domain === currentDomain) {
                         document.getElementById('remember-setting').checked = true;
                     }
                 } else {
-                    
+
                     delete savedDomains[domain];
                     await chrome.storage.local.set({ enabledDomains: savedDomains });
-                    
+
                     if (domain === currentDomain) {
                         document.getElementById('remember-setting').checked = false;
                     }
@@ -280,7 +322,7 @@ async function populateDomainsList() {
             });
             startupCell.appendChild(startupCheckbox);
             row.appendChild(startupCell);
-            
+
             const actionsCell = document.createElement('td');
             const deleteBtn = document.createElement('button');
             deleteBtn.textContent = 'Delete';
@@ -289,7 +331,7 @@ async function populateDomainsList() {
                 delete savedDomains[domain];
                 delete enabledDomains[domain];
                 await chrome.storage.local.set({ enabledDomains: savedDomains });
-                
+
                 chrome.runtime.sendMessage({
                     action: 'toggleCors',
                     domain: domain,
@@ -298,13 +340,13 @@ async function populateDomainsList() {
                 });
 
                 row.remove();
-                
+
                 if (domain === currentDomain) {
                     document.getElementById('cors-toggle').checked = false;
                     document.getElementById('remember-setting').checked = false;
                     updateToggleStatus(false);
                 }
-                
+
                 if (Object.keys(allDomains).length <= 1) {
                     populateDomainsList();
                 }
@@ -328,14 +370,14 @@ function setupSettingsForm() {
 async function saveSettings() {
     settings.showNotification = document.getElementById('show-notification').checked;
     settings.notificationDuration = parseInt(document.getElementById('notification-duration').value, 10);
-    
+
     await chrome.storage.local.set({ settings });
-    
+
     await chrome.runtime.sendMessage({
         action: 'settingsUpdated',
         settings: settings
     });
-    
+
     const saveBtn = document.getElementById('save-settings');
     const originalText = saveBtn.textContent;
     saveBtn.textContent = 'Saved!';
@@ -345,20 +387,4 @@ async function saveSettings() {
         saveBtn.textContent = originalText;
         saveBtn.disabled = false;
     }, 1500);
-}
-
-function extractDomain(url) {
-    if (!url) return '';
-    try {
-        const hostname = new URL(url).hostname;
-        
-        const parts = hostname.split('.');
-        if (parts.length > 2) {
-            return parts.slice(-2).join('.');
-        }
-        return hostname;
-    } catch (e) {
-        console.error('Error extracting domain:', e);
-        return '';
-    }
 }

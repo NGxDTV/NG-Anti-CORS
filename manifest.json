@@ -1,6 +1,6 @@
 {
     "name": "NG-Anti-CORS",
-    "version": "1.0",
+    "version": "1.1",
     "description": "Bypass CORS restrictions with one click. Perfect developer tool for testing APIs and debugging applications locally.",
     "manifest_version": 3,
     "background": {
@@ -17,7 +17,7 @@
         "<all_urls>"
     ],
     "action": {
-        "default_title": "CORS Blocker is OFF",
+        "default_title": "Anti-CORS",
         "default_icon": {
             "16": "images/icon-red-16.png",
             "48": "images/icon-red-48.png",

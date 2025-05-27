@@ -1,6 +1,6 @@
 
 
-console.log("NG-Anti-CORS is active: CORS restrictions have been removed for this domain");
+console.log("NG-Anti-CORS active: CORS-Requests allowed for this domain");
 
 if (!window.ngAntiCorsActive) {
     window.ngAntiCorsActive = true;
@@ -26,13 +26,13 @@ if (!window.ngAntiCorsActive) {
 
         removeExistingNotification();
 
-        if (!settings.showNotification) {
+        if (!settings || !settings.showNotification) {
             return;
         }
 
         const notification = document.createElement("div");
         notification.id = "ng-anti-cors-notification";
-        notification.textContent = `NG-Anti-CORS Active for ${domain}`;
+        notification.textContent = `NG-Anti-CORS: CORS requests are allowed for ${domain}`;
         notification.style.position = "fixed";
         notification.style.bottom = "10px";
         notification.style.right = "10px";
@@ -81,8 +81,12 @@ if (!window.ngAntiCorsActive) {
             settings = { showNotification: true, notificationDuration: 5 };
         }
 
-        const domain = window.location.hostname;
-        showNotification(domain, settings);
+        try {
+            const domain = window.location.hostname || 'unknown';
+            showNotification(domain, settings);
+        } catch (error) {
+            console.error("Error showing notification:", error);
+        }
     });
 
     chrome.runtime.onMessage.addListener((message) => {
