@@ -22,37 +22,38 @@ const RULE_ID = 1;
 
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, PUT, POST, DELETE, HEAD, OPTIONS, PATCH, PROPFIND, PROPPATCH, MKCOL, COPY, MOVE, LOCK, UNLOCK",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD, PROPFIND, PROPPATCH, MKCOL, COPY, MOVE, LOCK, UNLOCK",
     "Access-Control-Allow-Headers": "*",
-    "Access-Control-Max-Age": "7200",
     "Access-Control-Expose-Headers": "*",
-    "Access-Control-Allow-Credentials": "true"
+    "Access-Control-Max-Age": "7200"
 };
 
 async function setupDeclarativeRules() {
-    await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [RULE_ID] });
+    await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [RULE_ID, RULE_ID + 1] });
     if (enabledTabs.size === 0) return;
-    const commonResourceTypes = [
-        "xmlhttprequest", "websocket", "main_frame", "sub_frame", "stylesheet",
-        "script", "image", "font", "object", "other"
-    ];
+
+    const resourceTypes = ["xmlhttprequest", "other"];
     const responseHeaders = Object.entries(CORS_HEADERS).map(([header, value]) => ({
         operation: chrome.declarativeNetRequest.HeaderOperation.SET,
         header,
         value
     }));
-    const rules = [{
+
+    const normalRule = {
         id: RULE_ID,
         priority: 1,
         action: { type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS, responseHeaders },
-        condition: { tabIds: Array.from(enabledTabs), urlFilter: "*", resourceTypes: commonResourceTypes }
-    }];
-    try {
-        await chrome.declarativeNetRequest.updateSessionRules({ addRules: rules });
-        console.log("CORS rules updated successfully");
-    } catch (error) {
-        console.error("Failed to update CORS rules:", error);
-    }
+        condition: { tabIds: Array.from(enabledTabs), urlFilter: "*", resourceTypes }
+    };
+
+    const preflightRule = {
+        id: RULE_ID + 1,
+        priority: 1,
+        action: { type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS, responseHeaders },
+        condition: { tabIds: Array.from(enabledTabs), urlFilter: "*", resourceTypes, requestMethods: ["options"] }
+    };
+
+    await chrome.declarativeNetRequest.updateSessionRules({ addRules: [normalRule, preflightRule] });
 }
 
 function extractDomain(url) {
@@ -193,4 +194,19 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo?.status === "complete" && tab?.url) {
         try { updateTabState(tabId, tab.url); } catch (err) { console.error("Error updating tab state on tab update:", err); }
     }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'FETCH_PROXY') {
+    const { url, options } = message;
+    fetch(url, options)
+      .then(async (response) => {
+        const text = await response.text();
+        sendResponse({ ok: true, status: response.status, statusText: response.statusText, text });
+      })
+      .catch((error) => {
+        sendResponse({ ok: false, error: error.message });
+      });
+    return true;
+  }
 });

@@ -99,4 +99,26 @@ if (!window.ngAntiCorsActive) {
         }
         return false;
     });
+
+    window.addEventListener('message', (event) => {
+        if (event.source === window && event.data?.type === 'FETCH_REQUEST') {
+            const { id, url, options } = event.data;
+            chrome.runtime.sendMessage({ type: 'FETCH_PROXY', id, url, options }, (response) => {
+                window.postMessage({
+                    type: 'FETCH_RESPONSE',
+                    id: id,
+                    ok: response.ok,
+                    status: response.status,
+                    statusText: response.statusText,
+                    text: response.text,
+                    error: response.error
+                }, '*');
+            });
+        }
+    });
+
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('inject.js');
+    document.documentElement.appendChild(script);
+    script.onload = () => script.remove();
 }
