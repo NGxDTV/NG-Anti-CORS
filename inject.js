@@ -48,31 +48,43 @@ if (typeof window.__ngAntiCorsInjected === 'undefined') {
         }
     });
 
-    function shouldInterceptRequest(method, url) {
+    function shouldInterceptRequest(method, url, init) {
         const basicMethods = ['GET', 'POST', 'HEAD', 'PUT'];
         method = (method || 'GET').toUpperCase();
 
-        if (basicMethods.includes(method) && window.__ngAntiCorsEnabled) {
+        if (!window.__ngAntiCorsEnabled) {
+            return false;
+        }
+
+        if (init) {
+            if ((init.credentials === 'include' || init.credentials === 'same-origin') && 
+                !window.__ngAntiCorsPreflightEnabled) {
+                return false;
+            }
+            
+            if (init.headers && !window.__ngAntiCorsPreflightEnabled) {
+                const headers = init.headers;
+                if (headers instanceof Headers) {
+                    let hasCustomHeaders = false;
+                    headers.forEach((value, key) => {
+                        if (!['accept', 'accept-language', 'content-language', 'content-type'].includes(key.toLowerCase())) {
+                            hasCustomHeaders = true;
+                        }
+                    });
+                    if (hasCustomHeaders) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        if (basicMethods.includes(method)) {
             return true;
         }
 
         const advancedMethods = ['DELETE', 'OPTIONS', 'PATCH', 'PROPFIND', 'PROPPATCH', 'MKCOL', 'COPY', 'MOVE', 'LOCK', 'UNLOCK'];
-        if (advancedMethods.includes(method) && window.__ngAntiCorsPreflightEnabled) {
-            return true;
-        }
-
-        if (window.__ngAntiCorsEnabled && url) {
-            try {
-                const currentOrigin = location.origin;
-                const requestUrl = typeof url === 'string' ? url : url.url;
-                const requestOrigin = new URL(requestUrl, location.href).origin;
-
-                if (requestOrigin !== currentOrigin && init && (init.credentials === 'include' || init.credentials === 'same-origin')) {
-                    return window.__ngAntiCorsPreflightEnabled;
-                }
-            } catch (e) {
-                console.error('Error parsing URL:', e);
-            }
+        if (advancedMethods.includes(method)) {
+            return window.__ngAntiCorsPreflightEnabled;
         }
 
         return false;
@@ -81,7 +93,7 @@ if (typeof window.__ngAntiCorsInjected === 'undefined') {
     window.fetch = function (input, init = {}) {
         const method = init?.method || 'GET';
 
-        if (!shouldInterceptRequest(method, input)) {
+        if (!shouldInterceptRequest(method, input, init)) {
             return originalFetch.apply(this, arguments);
         }
 
