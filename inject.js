@@ -57,11 +57,11 @@ if (typeof window.__ngAntiCorsInjected === 'undefined') {
         }
 
         if (init) {
-            if ((init.credentials === 'include' || init.credentials === 'same-origin') && 
+            if ((init.credentials === 'include' || init.credentials === 'same-origin') &&
                 !window.__ngAntiCorsPreflightEnabled) {
                 return false;
             }
-            
+
             if (init.headers && !window.__ngAntiCorsPreflightEnabled) {
                 const headers = init.headers;
                 if (headers instanceof Headers) {
@@ -109,7 +109,15 @@ if (typeof window.__ngAntiCorsInjected === 'undefined') {
                             statusText: event.data.statusText,
                             headers: event.data.headers || {}
                         };
-                        resolve(new Response(event.data.text, responseInit));
+
+                        const status = event.data.status;
+                        const noBodyStatuses = [204, 205, 304];
+
+                        if (noBodyStatuses.includes(status)) {
+                            resolve(new Response(null, responseInit));
+                        } else {
+                            resolve(new Response(event.data.text, responseInit));
+                        }
                     } else {
                         reject(new Error(event.data.error || 'Fetch proxy failed'));
                     }
@@ -128,6 +136,7 @@ if (typeof window.__ngAntiCorsInjected === 'undefined') {
         this._ngAntiCorsPassword = password;
         originalXhrOpen.apply(this, arguments);
     };
+
     XMLHttpRequest.prototype.send = function (body) {
         if (!this._ngAntiCorsUrl ||
             !this._ngAntiCorsUrl.includes('://') ||

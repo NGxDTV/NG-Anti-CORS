@@ -1,5 +1,3 @@
-
-
 if (!window.ngAntiCorsActive) {
     window.ngAntiCorsActive = true;
     window.ngAntiCorsNotification = null;
@@ -135,18 +133,40 @@ if (!window.ngAntiCorsActive) {
             }
 
             const { id, url, options } = event.data;
-            chrome.runtime.sendMessage({ type: 'FETCH_PROXY', id, url, options }, (response) => {
+            try {
+                chrome.runtime.sendMessage({ type: 'FETCH_PROXY', id, url, options }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        console.error('NG-Anti-CORS: Extension error:', chrome.runtime.lastError);
+                        window.postMessage({
+                            type: 'FETCH_RESPONSE',
+                            id: id,
+                            ok: false,
+                            error: 'Extension context invalidated or error occurred'
+                        }, '*');
+                        return;
+                    }
+
+                    window.postMessage({
+                        type: 'FETCH_RESPONSE',
+                        id: id,
+                        ok: response.ok,
+                        status: response.status,
+                        statusText: response.statusText,
+                        text: response.text,
+                        headers: response.headers || {},
+                        error: response.error
+                    }, '*');
+                });
+            } catch (error) {
+                // Handle case where extension context is already invalidated
+                console.error('NG-Anti-CORS: Failed to send message to extension:', error);
                 window.postMessage({
                     type: 'FETCH_RESPONSE',
                     id: id,
-                    ok: response.ok,
-                    status: response.status,
-                    statusText: response.statusText,
-                    text: response.text,
-                    headers: response.headers || {},
-                    error: response.error
+                    ok: false,
+                    error: 'Extension communication failed. Page may need to be refreshed.'
                 }, '*');
-            });
+            }
         } else if (event.source === window && event.data?.type === 'NG_ANTI_CORS_READY') {
             window.postMessage({
                 type: 'NG_ANTI_CORS_STATUS',
@@ -174,22 +194,31 @@ if (!window.ngAntiCorsActive) {
     }
 
     const currentDomain = extractDomain(window.location.href);
-    chrome.runtime.sendMessage({ action: 'getDomainState', domain: currentDomain }, (response) => {
-        console.log(`Domain state for ${currentDomain}:`, response);
-        window.ngAntiCorsEnabled = response && response.state === true;
-        window.ngAntiCorsPreflightEnabled = response && response.preflightEnabled === true;
+    try {
+        chrome.runtime.sendMessage({ action: 'getDomainState', domain: currentDomain }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.error('NG-Anti-CORS: Extension error:', chrome.runtime.lastError);
+                return;
+            }
 
-        const script = document.createElement('script');
-        script.src = chrome.runtime.getURL('inject.js');
-        document.documentElement.appendChild(script);
-        script.onload = () => {
-            script.remove();
+            console.log(`Domain state for ${currentDomain}:`, response);
+            window.ngAntiCorsEnabled = response && response.state === true;
+            window.ngAntiCorsPreflightEnabled = response && response.preflightEnabled === true;
 
-            window.postMessage({
-                type: 'NG_ANTI_CORS_STATUS',
-                enabled: window.ngAntiCorsEnabled,
-                preflightEnabled: window.ngAntiCorsPreflightEnabled
-            }, '*');
-        };
-    });
+            const script = document.createElement('script');
+            script.src = chrome.runtime.getURL('inject.js');
+            document.documentElement.appendChild(script);
+            script.onload = () => {
+                script.remove();
+
+                window.postMessage({
+                    type: 'NG_ANTI_CORS_STATUS',
+                    enabled: window.ngAntiCorsEnabled,
+                    preflightEnabled: window.ngAntiCorsPreflightEnabled
+                }, '*');
+            };
+        });
+    } catch (error) {
+        console.error('NG-Anti-CORS: Failed to communicate with extension:', error);
+    }
 }
