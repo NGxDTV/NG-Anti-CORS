@@ -80,8 +80,8 @@ function setupTabs() {
 function updateToggleStatus(enabled) {
     const statusElement = document.getElementById('toggle-status');
     if (statusElement) {
-        statusElement.textContent = enabled ? 'CORS allowed for this domain' : 'Browser CORS behavior unchanged';
-        statusElement.style.color = enabled ? '#4CAF50' : '#f44336';
+        statusElement.textContent = enabled ? 'CORS requests are ALLOWED for this domain' : 'Browser CORS behavior unchanged';
+        statusElement.className = enabled ? 'status-green' : 'status-red';
     }
 }
 
@@ -124,9 +124,7 @@ async function init() {
                 const toggle = document.getElementById('cors-toggle');
                 const rememberSetting = document.getElementById('remember-setting');
 
-                if (!toggle) return;
-
-                if (response && response.state !== undefined) {
+                if (!toggle) return; if (response && response.state !== undefined) {
                     toggle.checked = response.state;
 
                     if (response.isPersistent) {
@@ -134,6 +132,45 @@ async function init() {
                     }
 
                     if (rememberSetting) rememberSetting.checked = response.isPersistent;
+
+                    const preflightToggle = document.getElementById('preflight-toggle');
+                    const preflightOption = document.querySelector('.preflight-option');
+
+                    if (preflightToggle && preflightOption) {
+                        preflightOption.style.display = response.state ? 'block' : 'none';
+                        preflightToggle.checked = response.preflightEnabled || false;
+                        preflightToggle.disabled = !response.state;
+
+                        const helpText = document.querySelector('.preflight-option .help-text');
+                        if (helpText) {
+                            helpText.innerHTML =
+                                'Enable this option for advanced CORS methods like PATCH, DELETE, OPTIONS, etc.<br>' +
+                                '<span style="display: block; margin-top: 5px; font-style: italic;">' +
+                                '• Basic (Current): GET, POST, HEAD<br>' +
+                                '• Advanced (With Preflight): All methods including PATCH, DELETE, OPTIONS, CREDENTIAL, CREDENTIALWHEADERS</span>';
+                        }
+
+                        preflightToggle.addEventListener('change', async function () {
+                            const enabled = this.checked;
+                            const remember = document.getElementById('remember-setting').checked;
+
+                            try {
+                                await new Promise((resolve) => {
+                                    chrome.runtime.sendMessage({
+                                        action: 'togglePreflight',
+                                        domain: currentDomain,
+                                        enabled: enabled,
+                                        remember: remember
+                                    }, resolve);
+                                });
+
+                                console.log(`Preflight ${enabled ? 'enabled' : 'disabled'} for ${currentDomain}`);
+                            } catch (error) {
+                                console.error('Error toggling preflight:', error);
+                                preflightToggle.checked = !enabled;
+                            }
+                        });
+                    }
                 } else {
                     toggle.checked = enabledDomains[currentDomain] || false;
                     if (rememberSetting) rememberSetting.checked = enabledDomains[currentDomain] !== undefined;
@@ -220,6 +257,24 @@ async function toggleCorsBlocking() {
                 enabledDomains[currentDomain] = enabled;
             } else {
                 delete enabledDomains[currentDomain];
+            }
+
+            const preflightToggle = document.getElementById('preflight-toggle');
+            const preflightOption = document.querySelector('.preflight-option');
+
+            if (preflightToggle && preflightOption) {
+                preflightOption.style.display = enabled ? 'block' : 'none';
+                preflightToggle.disabled = !enabled;
+
+                if (!enabled) {
+                    preflightToggle.checked = false;
+                    chrome.runtime.sendMessage({
+                        action: 'togglePreflight',
+                        domain: currentDomain,
+                        enabled: false,
+                        remember: remember
+                    });
+                }
             }
 
             populateDomainsList();
@@ -388,3 +443,25 @@ async function saveSettings() {
         saveBtn.disabled = false;
     }, 1500);
 }
+
+chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === "corsStateChanged" && message.domain === currentDomain) {
+        updateToggleStatus(message.enabled);
+        const toggle = document.getElementById('cors-toggle');
+        if (toggle) toggle.checked = message.enabled;
+        const preflightToggle = document.getElementById('preflight-toggle');
+        const preflightOption = document.querySelector('.preflight-option');
+
+        if (preflightToggle && preflightOption) {
+            preflightOption.style.display = message.enabled ? 'block' : 'none';
+            preflightToggle.disabled = !message.enabled;
+
+            if (!message.enabled) {
+                preflightToggle.checked = false;
+            } else if (message.preflightEnabled !== undefined) {
+                preflightToggle.checked = message.preflightEnabled;
+            }
+        }
+    }
+    return false;
+});

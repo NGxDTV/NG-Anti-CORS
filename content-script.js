@@ -1,10 +1,7 @@
 
 
-console.log("NG-Anti-CORS active: CORS-Requests allowed for this domain");
-
 if (!window.ngAntiCorsActive) {
     window.ngAntiCorsActive = true;
-
     window.ngAntiCorsNotification = null;
 
     function removeExistingNotification() {
@@ -87,21 +84,56 @@ if (!window.ngAntiCorsActive) {
         } catch (error) {
             console.error("Error showing notification:", error);
         }
-    });
-
-    chrome.runtime.onMessage.addListener((message) => {
+    }); chrome.runtime.onMessage.addListener((message) => {
         if (message.action === "settingsChanged") {
             const settings = message.settings;
-
         }
         if (message.action === "corsDisabled") {
             removeExistingNotification();
         }
+        if (message.action === "corsStateChanged" && message.domain === currentDomain) {
+            window.ngAntiCorsEnabled = message.enabled === true;
+            window.ngAntiCorsPreflightEnabled = message.preflightEnabled === true;
+
+            window.postMessage({
+                type: 'NG_ANTI_CORS_STATUS',
+                enabled: window.ngAntiCorsEnabled,
+                preflightEnabled: window.ngAntiCorsPreflightEnabled
+            }, '*');
+
+            if (!window.ngAntiCorsEnabled) {
+                removeExistingNotification();
+            }
+        }
         return false;
     });
-
     window.addEventListener('message', (event) => {
         if (event.source === window && event.data?.type === 'FETCH_REQUEST') {
+            if (!window.ngAntiCorsEnabled) {
+                console.log('NG-Anti-CORS: Ignoring fetch request because CORS is disabled for this domain');
+                window.postMessage({
+                    type: 'FETCH_RESPONSE',
+                    id: event.data.id,
+                    ok: false,
+                    error: 'NG-Anti-CORS is disabled for this domain'
+                }, '*');
+                return;
+            }
+
+            const advancedMethods = ['PUT', 'DELETE', 'OPTIONS', 'PATCH', 'PROPFIND', 'PROPPATCH', 'MKCOL', 'COPY', 'MOVE', 'LOCK', 'UNLOCK'];
+            const method = event.data.options?.method?.toUpperCase() || 'GET';
+
+            if (advancedMethods.includes(method) && !window.ngAntiCorsPreflightEnabled) {
+                console.log(`NG-Anti-CORS: Ignoring ${method} request because preflight handling is disabled`);
+                window.postMessage({
+                    type: 'FETCH_RESPONSE',
+                    id: event.data.id,
+                    ok: false,
+                    error: `Advanced method ${method} requires enabling Preflight Request handling`
+                }, '*');
+                return;
+            }
+
             const { id, url, options } = event.data;
             chrome.runtime.sendMessage({ type: 'FETCH_PROXY', id, url, options }, (response) => {
                 window.postMessage({
@@ -111,14 +143,53 @@ if (!window.ngAntiCorsActive) {
                     status: response.status,
                     statusText: response.statusText,
                     text: response.text,
+                    headers: response.headers || {},
                     error: response.error
                 }, '*');
             });
+        } else if (event.source === window && event.data?.type === 'NG_ANTI_CORS_READY') {
+            window.postMessage({
+                type: 'NG_ANTI_CORS_STATUS',
+                enabled: window.ngAntiCorsEnabled,
+                preflightEnabled: window.ngAntiCorsPreflightEnabled
+            }, '*');
+        } else if (event.source === window && event.data?.type === 'NG_ANTI_CORS_STATUS_UPDATED') {
+            console.log(
+                `NG-Anti-CORS content script: Status updated to ${event.data.enabled ? 'enabled' : 'disabled'}, ` +
+                `Preflight: ${event.data.preflightEnabled ? 'enabled' : 'disabled'}`
+            );
         }
     });
 
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('inject.js');
-    document.documentElement.appendChild(script);
-    script.onload = () => script.remove();
+    function extractDomain(url) {
+        if (!url) return "";
+        try {
+            const hostname = new URL(url).hostname;
+            const parts = hostname.split(".");
+            return parts.length > 2 ? parts.slice(-2).join(".") : hostname;
+        } catch (e) {
+            console.error("Error extracting domain:", e);
+            return "";
+        }
+    }
+
+    const currentDomain = extractDomain(window.location.href);
+    chrome.runtime.sendMessage({ action: 'getDomainState', domain: currentDomain }, (response) => {
+        console.log(`Domain state for ${currentDomain}:`, response);
+        window.ngAntiCorsEnabled = response && response.state === true;
+        window.ngAntiCorsPreflightEnabled = response && response.preflightEnabled === true;
+
+        const script = document.createElement('script');
+        script.src = chrome.runtime.getURL('inject.js');
+        document.documentElement.appendChild(script);
+        script.onload = () => {
+            script.remove();
+
+            window.postMessage({
+                type: 'NG_ANTI_CORS_STATUS',
+                enabled: window.ngAntiCorsEnabled,
+                preflightEnabled: window.ngAntiCorsPreflightEnabled
+            }, '*');
+        };
+    });
 }

@@ -22,14 +22,21 @@
         
         <!-- Toggle Tab -->
         <div id="content-toggle" class="tab-content active">
-            <div class="card">
-                <div class="current-site">
+            <div class="card">                <div class="current-site">
                     <p class="current-domain-p">Current domain: <span id="current-domain">loading...</span></p>
                     <label class="toggle-switch">
                         <input type="checkbox" id="cors-toggle">
                         <span class="slider round"></span>
                     </label>
                     <p id="toggle-status">CORS blocking is OFF</p>
+                </div>                <div class="preflight-option" style="margin-top: 10px; display: none;">
+                    <label>
+                        <input type="checkbox" id="preflight-toggle">
+                        Enable Full Access + Preflight Request handling
+                    </label>
+                    <p class="help-text" style="font-size: 11px; margin-top: 5px; color: #666; line-height: 1.4;">
+                        This enables special handling for CORS Preflight requests (OPTIONS method)
+                    </p>
                 </div>
             </div>
             <div class="save-preference">

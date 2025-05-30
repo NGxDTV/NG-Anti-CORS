@@ -1,8 +1,8 @@
-# NG-Anti-CORS 1.1 🛡️ 
+# NG-Anti-CORS 1.2 🛡️ 
 
 ## The Ultimate CORS Enabler for Developers 🚀
 
-![Version](https://img.shields.io/badge/version-1.1-blue)
+![Version](https://img.shields.io/badge/version-1.2-blue)
 ![Chrome](https://img.shields.io/badge/Chrome-supported-green)
 ![Opera](https://img.shields.io/badge/Opera-supported-green)
 
@@ -12,6 +12,9 @@
 
 - **Easy to Use** 🖱️ - One-click activation for any domain
 - **Domain-specific Control** 🌐 - Enable CORS requests only for specific domains
+- **Advanced Fetch & XHR Support** 🔄 - Deep integration with browser request APIs
+- **Preflight Control** 🛂 - Optional handling of CORS preflight requests
+- **All HTTP Methods** 📡 - Support for GET, POST, PUT, PATCH, DELETE, OPTIONS, and more
 - **Visual Indicators** 💡 - Color-coded icons show current status
 - **Save Settings** 💾 - Retain your preferences even after browser restart
 - **Customizable Notifications** 🔔 - Configure how and when notifications appear
@@ -36,10 +39,35 @@
 1. Navigate to a website with CORS issues
 2. Click on the NG-Anti-CORS icon in the toolbar
 3. Enable the toggle for the current domain
-4. Optional: Check "Remember this setting for browser restart"
-5. Reload the page - CORS requests are now allowed!
+4. Optional: Enable "Preflight Request handling" for advanced CORS scenarios
+5. Optional: Check "Remember this setting for browser restart"
+6. Reload the page - CORS requests are now allowed!
 
 > **Note:** When the extension is not enabled for a domain, it doesn't modify the browser's default CORS behavior at all.
+
+### Understanding CORS Modes
+
+NG-Anti-CORS now features two operational modes for more granular control:
+
+#### 1. Basic Mode (Default)
+When you simply enable CORS for a domain, the extension will:
+- Allow standard CORS for basic HTTP methods (GET, POST, HEAD)
+- Work for most typical web requests and API calls
+- Enable cross-origin access for simple content types
+
+#### 2. Advanced Mode (with Preflight Handling)
+When you enable both CORS and "Preflight Request handling", the extension will:
+- Support advanced HTTP methods (PATCH, DELETE, PUT, OPTIONS, etc.)
+- Handle complex requests with custom headers
+- Process preflight (OPTIONS) requests automatically
+- Support requests with credentials
+- Enable all CORS features for complex APIs
+
+**When to use Preflight Handling:**
+- When working with RESTful APIs that use methods beyond GET/POST
+- When your requests include custom headers
+- When seeing errors related to "Method not allowed" in preflight responses
+- When using authentication with cross-origin requests
 
 ## Adjusting Settings ⚙️
 
@@ -80,6 +108,18 @@ This plugin is especially useful for:
 ⚠️ **Security Notice**: This plugin is intended for development and testing purposes. Disable it when visiting sensitive websites as it affects the browser's security mechanisms.
 
 ## Version History 📝
+
+### Version 1.2
+- **Two-tier CORS Handling**: Separated basic CORS handling from advanced preflight handling
+- **Fetch API Proxy**: Added intelligent Fetch API proxying that respects extension state
+- **Method-based Control**: Basic methods (GET/POST) work with just CORS enabled, advanced methods (PATCH/DELETE/etc.) require preflight option
+- **Advanced Preflight Handling**: New toggle specifically for managing CORS preflight (OPTIONS) requests
+- **Better State Management**: Fixed issue where the extension was active even when disabled
+- **Cross-component Communication**: Enhanced messaging between content scripts and background processes
+- **Improved UI**: Added preflight toggle with helpful descriptions
+- **Extended Method Support**: Now properly supports all HTTP methods including PATCH, HEAD, PROPFIND and more
+- **Credentials Handling**: Correctly processes requests with credentials based on preflight setting
+- **Comprehensive Error Handling**: Added detailed error reporting for troubleshooting
 
 ### Version 1.1
 - **Critical Fix**: Corrected the core behavior of the extension. Previously, the extension was incorrectly blocking CORS when disabled. Now it correctly does not modify browser behavior when disabled.

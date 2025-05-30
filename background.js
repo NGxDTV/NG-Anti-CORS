@@ -1,5 +1,6 @@
 let enabledDomains = {};
 let enabledTabs = new Set();
+let preflightEnabledDomains = {};
 let settings = { showNotification: true, notificationDuration: 5 };
 
 function updateIcon(tabId, domain) {
@@ -37,23 +38,36 @@ async function setupDeclarativeRules() {
         operation: chrome.declarativeNetRequest.HeaderOperation.SET,
         header,
         value
-    }));
-
-    const normalRule = {
+    })); const normalRule = {
         id: RULE_ID,
         priority: 1,
         action: { type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS, responseHeaders },
         condition: { tabIds: Array.from(enabledTabs), urlFilter: "*", resourceTypes }
-    };
+    }; const rules = [normalRule];
 
-    const preflightRule = {
-        id: RULE_ID + 1,
-        priority: 1,
-        action: { type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS, responseHeaders },
-        condition: { tabIds: Array.from(enabledTabs), urlFilter: "*", resourceTypes, requestMethods: ["options"] }
-    };
+    const preflightTabs = new Set();
+    for (const tabId of enabledTabs) {
+        try {
+            const tab = await chrome.tabs.get(tabId);
+            const domain = extractDomain(tab.url);
+            if (domain && preflightEnabledDomains[domain] === true) {
+                preflightTabs.add(tabId);
+            }
+        } catch (err) {
+            console.error("Error checking tab for preflight:", err);
+        }
+    }
+    if (preflightTabs.size > 0) {
+        const preflightRule = {
+            id: RULE_ID + 1,
+            priority: 1,
+            action: { type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS, responseHeaders },
+            condition: { tabIds: Array.from(preflightTabs), urlFilter: "*", resourceTypes, requestMethods: ["options"] }
+        };
+        rules.push(preflightRule);
+    }
 
-    await chrome.declarativeNetRequest.updateSessionRules({ addRules: [normalRule, preflightRule] });
+    await chrome.declarativeNetRequest.updateSessionRules({ addRules: rules });
 }
 
 function extractDomain(url) {
@@ -98,23 +112,41 @@ async function handleToggleCors(domain, enabled, remember) {
         } else if (enabled && !remember) {
             enabledDomains[domain] = enabled;
         }
+
+        broadcastCorsStateChange(domain, enabled);
+
         const tabs = await chrome.tabs.query({});
         const affectedTabs = tabs.filter(tab => tab.url && extractDomain(tab.url) === domain);
         for (const tab of affectedTabs) {
             await updateTabState(tab.id, tab.url);
-            if (!enabled) {
-                try {
-                    await chrome.scripting.executeScript({
-                        target: { tabId: tab.id },
-                        function: () => {
+
+            try {
+                const preflightEnabled = preflightEnabledDomains[domain] === true;
+                await chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    function: (enabled, preflightEnabled) => {
+                        if (!enabled) {
                             const notification = document.getElementById("ng-anti-cors-notification");
                             if (notification?.parentNode) notification.parentNode.removeChild(notification);
-                            delete window.ngAntiCorsActive;
                         }
-                    });
+
+                        window.ngAntiCorsEnabled = enabled;
+                        window.ngAntiCorsPreflightEnabled = preflightEnabled;
+                        window.postMessage({
+                            type: 'NG_ANTI_CORS_STATUS',
+                            enabled: enabled,
+                            preflightEnabled: preflightEnabled
+                        }, '*');
+                    },
+                    args: [enabled, preflightEnabled]
+                });
+
+                if (!enabled) {
                     chrome.tabs.reload(tab.id);
-                } catch (err) {
-                    console.error("Error cleaning up notifications:", err);
+                }
+            } catch (err) {
+                console.error("Error updating CORS state:", err);
+                if (!enabled) {
                     chrome.tabs.reload(tab.id);
                 }
             }
@@ -126,6 +158,21 @@ async function handleToggleCors(domain, enabled, remember) {
     }
 }
 
+function broadcastCorsStateChange(domain, enabled) {
+    const preflightEnabled = preflightEnabledDomains[domain] === true;
+    
+    chrome.runtime.sendMessage({
+        action: "corsStateChanged",
+        domain: domain,
+        enabled: enabled,
+        preflightEnabled: preflightEnabled
+    }).catch(err => {
+        if (!err.message?.includes("Could not establish connection")) {
+            console.error("Error broadcasting CORS state change:", err);
+        }
+    });
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "toggleCors") {
         Promise.resolve(handleToggleCors(message.domain, message.enabled, message.remember))
@@ -133,19 +180,90 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             .catch(error => { console.error("Error in toggleCors handler:", error); sendResponse({ success: false, error: error.message }); });
         return true;
     }
+
+    if (message.action === "togglePreflight") {
+        const { domain, enabled, remember } = message;
+        if (!domain) {
+            sendResponse({ success: false, error: "Domain is required" });
+            return true;
+        }
+
+        if (enabled) {
+            preflightEnabledDomains[domain] = true;
+        } else {
+            delete preflightEnabledDomains[domain];
+        }
+
+        chrome.tabs.query({}, async (tabs) => {
+            const affectedTabs = tabs.filter(tab => tab.url && extractDomain(tab.url) === domain);
+
+            await setupDeclarativeRules();
+
+            for (const tab of affectedTabs) {
+                try {
+                    const isEnabled = enabledDomains[domain] === true;
+                    await chrome.scripting.executeScript({
+                        target: { tabId: tab.id },
+                        function: (corsEnabled, preflightEnabled) => {
+                            window.ngAntiCorsEnabled = corsEnabled;
+                            window.ngAntiCorsPreflightEnabled = preflightEnabled;
+
+                            window.postMessage({
+                                type: 'NG_ANTI_CORS_STATUS',
+                                enabled: corsEnabled,
+                                preflightEnabled: preflightEnabled
+                            }, '*');
+                        },
+                        args: [isEnabled, enabled]
+                    });
+                } catch (err) {
+                    console.error("Error updating preflight state:", err);
+                }
+            }
+
+            chrome.runtime.sendMessage({
+                action: "corsStateChanged",
+                domain: domain,
+                enabled: enabledDomains[domain] === true,
+                preflightEnabled: enabled
+            }).catch(err => {
+                if (!err.message?.includes("Could not establish connection")) {
+                    console.error("Error broadcasting preflight state change:", err);
+                }
+            });
+        });
+
+        if (remember) {
+            chrome.storage.local.set({ preflightEnabledDomains })
+                .then(() => {
+                    console.log(`Preflight ${enabled ? "enabled" : "disabled"} for ${domain} ${remember ? "(remembered)" : ""}`);
+                    sendResponse({ success: true });
+                })
+                .catch(error => {
+                    console.error("Error saving preflight settings:", error);
+                    sendResponse({ success: false, error: error.message });
+                });
+        } else {
+            sendResponse({ success: true });
+        }
+        return true;
+    }
     if (message.action === "getDomainState") {
         const domain = message.domain;
         if (domain) {
             const isEnabled = enabledDomains[domain] === true;
-            chrome.storage.local.get(["enabledDomains"], result => {
+            const isPreflightEnabled = preflightEnabledDomains[domain] === true;
+            chrome.storage.local.get(["enabledDomains", "preflightEnabledDomains"], result => {
                 const savedDomains = result.enabledDomains || {};
+                const savedPreflightDomains = result.preflightEnabledDomains || {};
                 const isPersistent = domain in savedDomains;
-                console.log(`getDomainState for ${domain}: enabled=${isEnabled}, isPersistent=${isPersistent}`);
-                sendResponse({ state: isEnabled, isPersistent });
+                const isPreflightPersistent = domain in savedPreflightDomains;
+                console.log(`getDomainState for ${domain}: enabled=${isEnabled}, isPersistent=${isPersistent}, preflightEnabled=${isPreflightEnabled}, preflightPersistent=${isPreflightPersistent}`);
+                sendResponse({ state: isEnabled, isPersistent, preflightEnabled: isPreflightEnabled, preflightPersistent: isPreflightPersistent });
             });
             return true;
         }
-        sendResponse({ state: false, isPersistent: false });
+        sendResponse({ state: false, isPersistent: false, preflightEnabled: false, preflightPersistent: false });
         return true;
     }
     if (message.action === "settingsUpdated") {
@@ -159,9 +277,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
 });
 
-chrome.storage.local.get(["enabledDomains", "settings"], async result => {
+chrome.storage.local.get(["enabledDomains", "preflightEnabledDomains", "settings"], async result => {
     if (result && typeof result === "object") {
         if (result.enabledDomains) { enabledDomains = result.enabledDomains; console.log("Loaded enabled domains from storage:", enabledDomains); }
+        if (result.preflightEnabledDomains) { preflightEnabledDomains = result.preflightEnabledDomains; console.log("Loaded preflight domains from storage:", preflightEnabledDomains); }
         if (result.settings) { settings = { ...settings, ...result.settings }; console.log("Loaded settings from storage:", settings); }
     } else {
         console.log("No storage data found or invalid format, using defaults");
@@ -197,16 +316,53 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'FETCH_PROXY') {
-    const { url, options } = message;
-    fetch(url, options)
-      .then(async (response) => {
-        const text = await response.text();
-        sendResponse({ ok: true, status: response.status, statusText: response.statusText, text });
-      })
-      .catch((error) => {
-        sendResponse({ ok: false, error: error.message });
-      });
-    return true;
-  }
+    if (message.type === 'FETCH_PROXY') {
+        if (sender && sender.tab && sender.tab.id) {
+            const tabId = sender.tab.id;
+            if (!enabledTabs.has(tabId)) {
+                console.log(`Rejecting FETCH_PROXY from tab ${tabId} - CORS not enabled`);
+                sendResponse({
+                    ok: false,
+                    error: 'NG-Anti-CORS is disabled for this domain'
+                });
+                return true;
+            }
+
+            const domain = extractDomain(sender.tab.url);
+            const method = message.options?.method?.toUpperCase() || 'GET';
+            const advancedMethods = ['PUT', 'DELETE', 'OPTIONS', 'PATCH', 'PROPFIND', 'PROPPATCH', 'MKCOL', 'COPY', 'MOVE', 'LOCK', 'UNLOCK'];
+
+            if (advancedMethods.includes(method) && domain && preflightEnabledDomains[domain] !== true) {
+                console.log(`Rejecting ${method} request because preflight is not enabled for ${domain}`);
+                sendResponse({
+                    ok: false,
+                    error: `Advanced CORS method ${method} requires enabling preflight handling for this domain`
+                });
+                return true;
+            }
+        }
+
+        const { url, options } = message;
+        fetch(url, options)
+            .then(async (response) => {
+                const text = await response.text();
+
+                const headers = {};
+                response.headers.forEach((value, key) => {
+                    headers[key] = value;
+                });
+
+                sendResponse({
+                    ok: true,
+                    status: response.status,
+                    statusText: response.statusText,
+                    text,
+                    headers
+                });
+            })
+            .catch((error) => {
+                sendResponse({ ok: false, error: error.message });
+            });
+        return true;
+    }
 });
