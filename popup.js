@@ -144,10 +144,10 @@ async function init() {
                         const helpText = document.querySelector('.preflight-option .help-text');
                         if (helpText) {
                             helpText.innerHTML =
-                                'Enable this option for advanced CORS methods like PATCH, DELETE, OPTIONS, etc.<br>' +
+                                'Enable this option for advanced CORS methods like PATCH,<br>DELETE, OPTIONS, etc.<br>' +
                                 '<span style="display: block; margin-top: 5px; font-style: italic;">' +
                                 '• Basic (Current): GET, POST, HEAD<br>' +
-                                '• Advanced (With Preflight): All methods including PATCH, DELETE, OPTIONS, CREDENTIAL, CREDENTIALWHEADERS</span>';
+                                '• Advanced (With Preflight): All methods including<br>PATCH, DELETE, OPTIONS, CREDENTIAL,<br>CREDENTIALWHEADERS and more.</span>';
                         }
 
                         preflightToggle.addEventListener('change', async function () {
