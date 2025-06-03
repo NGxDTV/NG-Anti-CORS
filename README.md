@@ -4,154 +4,147 @@
 
 ![Version](https://img.shields.io/badge/version-1.3-blue)
 ![Chrome](https://img.shields.io/badge/Chrome-supported-green)
+![Edge](https://img.shields.io/badge/Edge-supported-green)
 ![Opera](https://img.shields.io/badge/Opera-supported-green)
 
-**NG-Anti-CORS** is a powerful browser extension that allows CORS (Cross-Origin Resource Sharing) requests with just one click. The perfect developer tool for testing APIs and debugging applications in local environments! 🔧
-
-## Features ✨
-
-- **Easy to Use** 🖱️ - One-click activation for any domain
-- **Domain-specific Control** 🌐 - Enable CORS requests only for specific domains
-- **Advanced Fetch & XHR Support** 🔄 - Deep integration with browser request APIs
-- **Preflight Control** 🛂 - Optional handling of CORS preflight requests
-- **All HTTP Methods** 📡 - Support for GET, POST, PUT, PATCH, DELETE, OPTIONS, and more
-- **Visual Indicators** 💡 - Color-coded icons show current status
-- **Save Settings** 💾 - Retain your preferences even after browser restart
-- **Customizable Notifications** 🔔 - Configure how and when notifications appear
-- **Lightweight** 🪶 - Minimal impact on browser performance
-
-## Installation 📥
-
-1. **Chrome Web Store** (recommended):
-   - Download the [latest Chrome / Opera release](https://chromewebstore.google.com/detail/ng-anti-cors/amlaedkdelmhjggadmigdcihfalbgpha)
-   - Once approved, you'll be able to find it by searching for "NG-Anti-CORS"
-   - Click "Add" and confirm the installation
-
-2. **Manual Installation**:
-   - Download the [latest release](https://github.com/NGxDTV/NG-Anti-CORS/releases)
-   - Unzip the file to a folder
-   - Open Chrome/Opera and navigate to `chrome://extensions/`
-   - Enable "Developer mode" (top right)
-   - Click "Load unpacked" and select the extracted folder
-
-## Usage 🚀
-
-1. Navigate to a website with CORS issues
-2. Click on the NG-Anti-CORS icon in the toolbar
-3. Enable the toggle for the current domain
-4. Optional: Enable "Preflight Request handling" for advanced CORS scenarios
-5. Optional: Check "Remember this setting for browser restart"
-6. Reload the page - CORS requests are now allowed!
-
-> **Note:** When the extension is not enabled for a domain, it doesn't modify the browser's default CORS behavior at all.
-
-### Understanding CORS Modes
-
-NG-Anti-CORS now features two operational modes for more granular control:
-
-#### 1. Basic Mode (Default)
-When you simply enable CORS for a domain, the extension will:
-- Allow standard CORS for basic HTTP methods (GET, POST, HEAD)
-- Work for most typical web requests and API calls
-- Enable cross-origin access for simple content types
-
-#### 2. Advanced Mode (with Preflight Handling)
-When you enable both CORS and "Preflight Request handling", the extension will:
-- Support advanced HTTP methods (PATCH, DELETE, PUT, OPTIONS, etc.)
-- Handle complex requests with custom headers
-- Process preflight (OPTIONS) requests automatically
-- Support requests with credentials
-- Enable all CORS features for complex APIs
-
-**When to use Preflight Handling:**
-- When working with RESTful APIs that use methods beyond GET/POST
-- When your requests include custom headers
-- When seeing errors related to "Method not allowed" in preflight responses
-- When using authentication with cross-origin requests
-
-## Adjusting Settings ⚙️
-
-For advanced configurations:
-
-1. Click on the NG-Anti-CORS icon
-2. Select the "Settings" tab
-3. Adjust notification duration and other options
-4. Click "Save Settings"
-
-## For Developers 👨‍💻
-
-This plugin is especially useful for:
-
-- Frontend developers working with APIs
-- Testing web applications in local development environments
-- Debugging CORS issues in production environments
-- API integration and testing
-
-## Troubleshooting 🔧
-
-**Plugin not working?**
-
-- Make sure the plugin is activated
-- Check if CORS allowing is enabled for the current domain
-- Completely reload the page (CTRL+F5)
-- Check for errors in the developer tools (F12)
-- Verify that the site is actually experiencing CORS issues that need to be bypassed
-
-## Privacy and Security 🔒
-
-**NG-Anti-CORS**:
-- Collects **no** personal data
-- Sends **no** information to remote servers
-- Works completely locally in your browser
-- Only stores your preferences for enabled domains
-
-⚠️ **Security Notice**: This plugin is intended for development and testing purposes. Disable it when visiting sensitive websites as it affects the browser's security mechanisms.
-
-## Version History 📝
-
-### Version 1.3
-- **Bug Fixes**: Fixed unwanted notifications showing up for domains where CORS is not active
-- **Improved Compatibility**: Fixed issues with YouTube and Google services by not interfering with their CORS implementation
-- **Smart Domain Detection**: Added intelligent detection of sites with existing CORS handling
-- **Enhanced Notification System**: Notifications now only appear when appropriate and respect user settings
-- **Protected Domain Handling**: Better handling of domains with sensitive CORS requirements
-- **Header Handling Improvements**: Changed header operations from APPEND to SET to avoid duplication
-- **Conflict Resolution**: Added unique rule IDs to avoid conflicts with other extensions
-- **Performance Optimization**: Skip processing on domains that don't need CORS modification
-
-### Version 1.2
-- **Two-tier CORS Handling**: Separated basic CORS handling from advanced preflight handling
-- **Fetch API Proxy**: Added intelligent Fetch API proxying that respects extension state
-- **Method-based Control**: Basic methods (GET/POST) work with just CORS enabled, advanced methods (PATCH/DELETE/etc.) require preflight option
-- **Advanced Preflight Handling**: New toggle specifically for managing CORS preflight (OPTIONS) requests
-- **Better State Management**: Fixed issue where the extension was active even when disabled
-- **Cross-component Communication**: Enhanced messaging between content scripts and background processes
-- **Improved UI**: Added preflight toggle with helpful descriptions
-- **Extended Method Support**: Now properly supports all HTTP methods including PATCH, HEAD, PROPFIND and more
-- **Credentials Handling**: Correctly processes requests with credentials based on preflight setting
-- **Comprehensive Error Handling**: Added detailed error reporting for troubleshooting
-
-### Version 1.1
-- **Critical Fix**: Corrected the core behavior of the extension. Previously, the extension was incorrectly blocking CORS when disabled. Now it correctly does not modify browser behavior when disabled.
-- **Improved UI Labels**: Updated status messages and notifications to accurately reflect the extension's functionality
-
-### Version 1.0
-- Initial release
-
-## Contributing 🤝
-
-Contributions are welcome! If you want to help:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## License 📄
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+**NG-Anti-CORS** is a powerful browser extension that enables Cross-Origin Resource Sharing with a single click – perfect for testing APIs and debugging web apps in local environments. 🔧
 
 ---
 
-Developed with ❤️ for the developer community
+## Features ✨
+
+- **Easy to Use** 🖱️ &nbsp;– One-click activation for any domain  
+- **Domain-specific Control** 🌐 &nbsp;– Enable CORS per-site  
+- **Advanced Fetch & XHR Support** 🔄 – Deep integration with browser request APIs  
+- **Preflight Control** 🛂 – Optional handling of CORS preflight (`OPTIONS`) requests  
+- **All HTTP Methods** 📡 – Basic mode supports **GET, POST, HEAD *and PUT***; Advanced mode unlocks PATCH, DELETE, OPTIONS and the rest  
+- **Visual Indicators** 💡 – Color-coded icons show current status  
+- **Save Settings** 💾 – Keep your preferences after browser restarts  
+- **Customizable Notifications** 🔔 – Decide how and when toast notifications appear  
+- **Supports Requests with Credentials\*** 🔑 – Cookies / auth headers pass through if the target server sends `Access-Control-Allow-Credentials: true`  
+- **Lightweight** 🪶 – Pure Declarative Net Request, zero remote calls, minimal overhead  
+
+\* Browsers require the **target API** to set `Access-Control-Allow-Credentials: true`; NG-Anti-CORS never injects that header automatically.
+
+---
+
+## Installation 📥
+
+### 1. Chrome Web Store (recommended)
+
+1. Open the [Chrome / Edge / Opera listing](https://chromewebstore.google.com/detail/ng-anti-cors/amlaedkdelmhjggadmigdcihfalbgpha)  
+2. Click **Add to Chrome** and confirm
+
+### 2. Manual Installation
+
+1. Download the [latest release .zip](https://github.com/NGxDTV/NG-Anti-CORS/releases)  
+2. Unzip to any folder  
+3. Open `chrome://extensions/` (or `edge://extensions/`)  
+4. Enable **Developer mode** (top right)  
+5. Click **Load unpacked** and select the unzipped folder  
+
+> **Opera users:** Install the helper extension **“Install Chrome Extensions”** first, then follow the Chrome steps.
+
+---
+
+## Usage 🚀
+
+1. Open a page that shows CORS errors  
+2. Click the NG-Anti-CORS icon  
+3. Toggle **Enable CORS** for the current domain  
+4. *(Optional)* Toggle **Preflight Request handling** for advanced scenarios  
+5. *(Optional)* Check **Remember this setting** to persist across restarts  
+6. Reload the page – CORS restrictions are gone!
+
+*When NG-Anti-CORS is disabled for a domain, it leaves the browser’s security model untouched.*
+
+---
+
+### Understanding CORS Modes
+
+| Mode | Enabled HTTP methods | Typical use-case |
+|------|---------------------|------------------|
+| **Basic** (default) | GET, POST, **PUT**, HEAD | Simple REST calls, most front-end dev work |
+| **Advanced** (Preflight) | Full method set: PATCH, DELETE, OPTIONS … | APIs needing custom headers, credentials, complex verbs |
+
+Enable **Preflight Request handling** when:
+
+- You call APIs with PATCH, DELETE, OPTIONS, etc.  
+- Your requests include custom headers (e.g. `Authorization`, `X-Auth-Token`)  
+- You see “Method not allowed” or failed preflight in DevTools  
+- You need to send cookies or HTTP-auth cross-origin and the server supports it
+
+---
+
+## Adjusting Settings ⚙️
+
+1. Click the NG-Anti-CORS icon  
+2. Open the **Settings** tab  
+3. Change notification duration, default toggles, …  
+4. Click **Save**
+
+---
+
+## For Developers 👨‍💻
+
+Ideal for:
+
+- Front-end devs consuming third-party APIs  
+- Testing local micro-services (e.g. `localhost:3000` ↔︎ `localhost:5000`)  
+- Debugging CORS errors in staging / prod  
+- Rapid API prototyping with tools like Postman, Swagger UI, etc.
+
+---
+
+## Troubleshooting 🔧
+
+1. Verify the extension is active (green icon)  
+2. Check that CORS is enabled for the current domain  
+3. Hard-reload the page (Ctrl + F5)  
+4. Inspect DevTools → Network for failing requests  
+5. Confirm the target server actually blocks CORS – some errors originate elsewhere
+
+---
+
+## Privacy & Security 🔒
+
+- **No telemetry** – zero personal data collected  
+- **No remote servers** – all logic runs locally via the Chrome Declarative Net Request API; no proxying  
+- **Minimal storage** – only remembers your per-domain toggles  
+
+> **Security notice:** Use NG-Anti-CORS only in development or on trusted sites. Turning off CORS weakens standard browser protections.
+
+---
+
+## Version History 📝
+
+### 1.3
+- Fixed stray notifications on untouched domains  
+- Exempted Google / YouTube CORS flow from modification  
+- Smarter detection of existing CORS headers  
+- Only shows notifications when relevant and respecting user settings  
+- Improved handling of protected Chrome/Edge pages  
+- Switched header ops from **APPEND → SET** to avoid duplicates  
+- Unique DNR rule IDs to bypass extension conflicts  
+- Performance tweaks: skip domains that don’t need CORS fixes  
+
+*(Older logs: see CHANGELOG.md)*
+
+---
+
+## Contributing 🤝
+
+1. Fork → `git checkout -b feature/AmazingFeature`  
+2. Commit → `git commit -m "feat: add AmazingFeature"`  
+3. Push → `git push origin feature/AmazingFeature`  
+4. Open a Pull Request – we ❤️ PRs!
+
+---
+
+## License 📄
+
+MIT – see [LICENSE](LICENSE).
+
+---
+
+Developed with ❤️ for the web-dev community.
