@@ -19,7 +19,10 @@ function updateIcon(tabId, domain) {
     tabId ? chrome.action.setTitle({ tabId, title }) : chrome.action.setTitle({ title });
 }
 
-const RULE_ID = 1;
+// Use a random base for rule IDs to avoid conflicts with other extensions
+const RULE_ID_BASE = Math.floor(Math.random() * 100000) + 10000; // Random number between 10000 and 110000
+const RULE_ID = RULE_ID_BASE;
+const PREFLIGHT_RULE_ID = RULE_ID_BASE + 1;
 
 const CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -30,39 +33,88 @@ const CORS_HEADERS = {
 };
 
 async function setupDeclarativeRules() {
-    await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [RULE_ID, RULE_ID + 1] });
+    // First, remove any existing rules that we created
+    try {
+        await chrome.declarativeNetRequest.updateSessionRules({ 
+            removeRuleIds: [RULE_ID, PREFLIGHT_RULE_ID] 
+        });
+    } catch (err) {
+        console.error("Error removing rules:", err);
+    }
+    
     if (enabledTabs.size === 0) return;
-
+    
     const resourceTypes = ["xmlhttprequest", "other"];
+    const filteredEnabledTabs = new Set();
+    
+    for (const tabId of enabledTabs) {
+        try {
+            const tab = await chrome.tabs.get(tabId);
+
+            if (tab && tab.url && !isExcludedCORSDomain(tab.url)) {
+                filteredEnabledTabs.add(tabId);
+            }
+        } catch (e) {
+            // Tab might have been closed, ignore
+        }
+    }
+    
+    // If all tabs were filtered out, don't add any rules
+    if (filteredEnabledTabs.size === 0) return;
+    
+    // Use SET operation for CORS headers
     const responseHeaders = Object.entries(CORS_HEADERS).map(([header, value]) => ({
         operation: chrome.declarativeNetRequest.HeaderOperation.SET,
         header,
         value
-    })); const normalRule = {
+    }));
+    
+    const normalRule = {
         id: RULE_ID,
         priority: 1,
         action: { type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS, responseHeaders },
-        condition: { tabIds: Array.from(enabledTabs), urlFilter: "*", resourceTypes }
-    }; const rules = [normalRule];
-
-    const preflightTabs = new Set();
+        condition: { 
+            tabIds: Array.from(filteredEnabledTabs), 
+            urlFilter: "*", 
+            resourceTypes
+        }
+    };
+    
+    const rules = [normalRule];    const preflightTabs = new Set();
     for (const tabId of enabledTabs) {
         try {
             const tab = await chrome.tabs.get(tabId);
             const domain = extractDomain(tab.url);
-            if (domain && preflightEnabledDomains[domain] === true) {
+            // Skip YouTube/Google domains from preflight rules
+            if (domain && preflightEnabledDomains[domain] === true && !isExcludedCORSDomain(tab.url)) {
                 preflightTabs.add(tabId);
             }
         } catch (err) {
             console.error("Error checking tab for preflight:", err);
         }
-    }
-    if (preflightTabs.size > 0) {
+    }    if (preflightTabs.size > 0) {
+        const excludedDomains = [
+            "youtube.com",
+            "google.com",
+            "gstatic.com",
+            "ytimg.com",
+            "googleapis.com",
+            "doubleclick.net",
+            "ggpht.com",
+            "googlevideo.com"
+        ];
+        
         const preflightRule = {
             id: RULE_ID + 1,
             priority: 1,
             action: { type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS, responseHeaders },
-            condition: { tabIds: Array.from(preflightTabs), urlFilter: "*", resourceTypes, requestMethods: ["options"] }
+            condition: { 
+                tabIds: Array.from(preflightTabs), 
+                urlFilter: "*", 
+                resourceTypes, 
+                requestMethods: ["options"],
+                excludedRequestDomains: excludedDomains
+            }
         };
         rules.push(preflightRule);
     }
@@ -82,9 +134,61 @@ function extractDomain(url) {
     }
 }
 
+// Check if a domain is protected (Chrome Web Store, Extensions, Settings, etc.)
+function isProtectedDomain(url) {
+    if (!url) return false;
+    try {
+        const hostname = new URL(url).hostname;
+        // Chrome Web Store and other protected Chrome URLs
+        if (hostname === 'chrome.google.com') return true;
+        if (url.startsWith('chrome://')) return true;
+        if (url.startsWith('chrome-extension://')) return true;
+        return false;
+    } catch (e) {
+        return false;
+    }
+}
+
+// Check if a domain should be excluded from CORS modifications
+// These are domains with their own CORS handling that we shouldn't interfere with
+function isExcludedCORSDomain(url) {
+    if (!url) return false;
+    try {
+        const hostname = new URL(url).hostname.toLowerCase();
+        const excludedDomains = [
+            "youtube.com",
+            "google.com",
+            "gstatic.com",
+            "ytimg.com",
+            "googleapis.com",
+            "doubleclick.net",
+            "ggpht.com",
+            "googlevideo.com"
+        ];
+        
+        return excludedDomains.some(domain => hostname.includes(domain));
+    } catch (e) {
+        return false;
+    }
+}
+
 async function updateTabState(tabId, url) {
     const domain = extractDomain(url);
     if (!domain) return;
+    
+    // Skip protected domains
+    if (isProtectedDomain(url)) {
+        console.log(`Skipping protected domain: ${domain}`);
+        return false;
+    }
+    
+    // Skip domains with their own CORS handling
+    if (isExcludedCORSDomain(url)) {
+        console.log(`Skipping domain with custom CORS handling: ${domain}`);
+        // We don't return false here because we still want to allow the extension to be 
+        // toggled for these domains, we just won't modify their CORS headers
+    }
+    
     const enabled = enabledDomains[domain] === true;
     updateIcon(tabId, domain);
     if (enabled) {
@@ -113,11 +217,15 @@ async function handleToggleCors(domain, enabled, remember) {
             enabledDomains[domain] = enabled;
         }
 
-        broadcastCorsStateChange(domain, enabled);
-
-        const tabs = await chrome.tabs.query({});
+        broadcastCorsStateChange(domain, enabled);        const tabs = await chrome.tabs.query({});
         const affectedTabs = tabs.filter(tab => tab.url && extractDomain(tab.url) === domain);
         for (const tab of affectedTabs) {
+            // Skip protected domains like Chrome Web Store
+            if (isProtectedDomain(tab.url)) {
+                console.log(`Skipping protected domain: ${extractDomain(tab.url)}`);
+                continue;
+            }
+            
             await updateTabState(tab.id, tab.url);
 
             try {
@@ -192,14 +300,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             preflightEnabledDomains[domain] = true;
         } else {
             delete preflightEnabledDomains[domain];
-        }
-
-        chrome.tabs.query({}, async (tabs) => {
+        }        chrome.tabs.query({}, async (tabs) => {
             const affectedTabs = tabs.filter(tab => tab.url && extractDomain(tab.url) === domain);
 
             await setupDeclarativeRules();
 
             for (const tab of affectedTabs) {
+                // Skip protected domains
+                if (isProtectedDomain(tab.url)) {
+                    console.log(`Skipping protected domain for preflight: ${extractDomain(tab.url)}`);
+                    continue;
+                }
+                
                 try {
                     const isEnabled = enabledDomains[domain] === true;
                     await chrome.scripting.executeScript({
@@ -248,6 +360,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         return true;
     }
+
     if (message.action === "getDomainState") {
         const domain = message.domain;
         if (domain) {
@@ -266,6 +379,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ state: false, isPersistent: false, preflightEnabled: false, preflightPersistent: false });
         return true;
     }
+
     if (message.action === "settingsUpdated") {
         settings = { ...settings, ...message.settings };
         chrome.storage.local.set({ settings })
@@ -273,7 +387,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             .catch(error => sendResponse({ success: false, error: error.message }));
         return true;
     }
+
     if (message.action === "getSettings") { sendResponse(settings); return true; }
+
     return false;
 });
 
@@ -285,10 +401,17 @@ chrome.storage.local.get(["enabledDomains", "preflightEnabledDomains", "settings
     } else {
         console.log("No storage data found or invalid format, using defaults");
     }
+    
     chrome.tabs.query({}, async tabs => {
         console.log(`Initializing ${tabs.length} open tabs`);
         for (const tab of tabs) {
             if (tab.url?.startsWith("http")) {
+                // Skip protected domains during initialization
+                if (isProtectedDomain(tab.url)) {
+                    console.log(`Skipping protected domain during initialization: ${extractDomain(tab.url)}`);
+                    continue;
+                }
+                
                 const enabled = await updateTabState(tab.id, tab.url);
                 console.log(`Initialized tab ${tab.id} (${extractDomain(tab.url)}): CORS ${enabled ? "enabled" : "disabled"}`);
             }

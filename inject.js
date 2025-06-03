@@ -47,12 +47,39 @@ if (typeof window.__ngAntiCorsInjected === 'undefined') {
             }
         }
     });
-
+    
     function shouldInterceptRequest(method, url, init) {
         const basicMethods = ['GET', 'POST', 'HEAD', 'PUT'];
         method = (method || 'GET').toUpperCase();
 
         if (!window.__ngAntiCorsEnabled) {
+            return false;
+        }
+        
+        // Only intercept cross-origin requests, not same-origin requests
+        try {
+            const requestUrl = new URL(url, window.location.href);
+            
+            // If the request is to the same origin, don't intercept it
+            if (requestUrl.origin === window.location.origin) {
+                return false;
+            }
+            
+            // Don't intercept requests to YouTube, Google or similar domains
+            const host = requestUrl.hostname.toLowerCase();
+            if (host.includes('youtube.com') || 
+                host.includes('google.com') || 
+                host.includes('gstatic.com') || 
+                host.includes('ytimg.com') || 
+                host.includes('googleapis.com') ||
+                host.includes('doubleclick.net') ||
+                host.includes('ggpht.com') ||
+                host.includes('googlevideo.com')) {
+                console.log('NG-Anti-CORS: Not intercepting request to excluded domain:', host);
+                return false;
+            }
+        } catch (e) {
+            // If we can't parse the URL, assume it's relative and don't intercept
             return false;
         }
 
@@ -76,6 +103,12 @@ if (typeof window.__ngAntiCorsInjected === 'undefined') {
                     }
                 }
             }
+            
+            // Don't intercept requests that already have CORS headers set by the application
+            // This ensures we don't break existing working CORS setups
+            if (init.mode === 'no-cors') {
+                return false; // Application is already handling CORS in a specific way
+            }
         }
 
         if (basicMethods.includes(method)) {
@@ -89,11 +122,50 @@ if (typeof window.__ngAntiCorsInjected === 'undefined') {
 
         return false;
     }
-
+    
     window.fetch = function (input, init = {}) {
         const method = init?.method || 'GET';
+        let url = input;
+        
+        // Handle Request object input
+        if (typeof input === 'object' && input instanceof Request) {
+            url = input.url;
+            if (!init.method && input.method) {
+                method = input.method;
+            }
+        }
 
-        if (!shouldInterceptRequest(method, input, init)) {
+        // Check if this is a Google or YouTube domain request
+        // YouTube has special CORS handling that we shouldn't interfere with
+        try {
+            const urlObj = new URL(url, window.location.href);
+            const host = urlObj.hostname.toLowerCase();
+            if (host.includes('youtube.com') || 
+                host.includes('google.com') || 
+                host.includes('gstatic.com') || 
+                host.includes('ytimg.com') || 
+                host.includes('googleapis.com') ||
+                host.includes('doubleclick.net') ||
+                host.includes('ggpht.com')) {
+                // Don't intercept requests to Google/YouTube domains as they have their own CORS setup
+                return originalFetch.apply(this, arguments);
+            }
+        } catch (e) {
+            // If URL parsing fails, just continue
+        }
+
+        // Don't intercept if shouldInterceptRequest says we shouldn't
+        if (!shouldInterceptRequest(method, url, init)) {
+            return originalFetch.apply(this, arguments);
+        }
+        
+        // Checks for existing CORS configurations
+        if (init && (
+            (init.mode && init.mode !== 'cors') || // If mode is explicitly set to something other than 'cors'
+            (init.referrerPolicy === 'no-referrer') || // These are often set when the site handles CORS itself
+            (typeof input === 'object' && input.mode && input.mode !== 'cors') || // For Request objects
+            (init.cache === 'only-if-cached') // This requires same-origin mode
+        )) {
             return originalFetch.apply(this, arguments);
         }
 
@@ -136,13 +208,59 @@ if (typeof window.__ngAntiCorsInjected === 'undefined') {
         this._ngAntiCorsPassword = password;
         originalXhrOpen.apply(this, arguments);
     };
-
+    
     XMLHttpRequest.prototype.send = function (body) {
+        // First, check if this is a cross-origin request that we need to intercept
         if (!this._ngAntiCorsUrl ||
             !this._ngAntiCorsUrl.includes('://') ||
             this._ngAntiCorsUrl.startsWith(window.location.origin) ||
             !shouldInterceptRequest(this._ngAntiCorsMethod, this._ngAntiCorsUrl)) {
             return originalXhrSend.apply(this, arguments);
+        }
+        
+        // Check if this is a Google or YouTube domain request
+        // YouTube has special CORS handling that we shouldn't interfere with
+        try {
+            const urlObj = new URL(this._ngAntiCorsUrl);
+            const host = urlObj.hostname.toLowerCase();
+            if (host.includes('youtube.com') || 
+                host.includes('google.com') || 
+                host.includes('gstatic.com') || 
+                host.includes('ytimg.com') || 
+                host.includes('googleapis.com') ||
+                host.includes('doubleclick.net') ||
+                host.includes('ggpht.com')) {
+                // Don't intercept requests to Google/YouTube domains
+                return originalXhrSend.apply(this, arguments);
+            }
+        } catch (e) {
+            // If URL parsing fails, just continue
+        }
+        
+        // Let's attempt to detect if this request would work without interception
+        try {
+            // If withCredentials is true, the developer is already handling CORS
+            if (this.withCredentials === true) {
+                return originalXhrSend.apply(this, arguments);
+            }
+            
+            // Check if there are any custom headers that typically indicate CORS is already handled
+            const corsHeaders = ['x-requested-with', 'authorization', 'origin'];
+            let hasCustomCorsHeaders = false;
+            for (const header of corsHeaders) {
+                try {
+                    if (this.getRequestHeader && this.getRequestHeader(header)) {
+                        hasCustomCorsHeaders = true;
+                        break;
+                    }
+                } catch(e) {}
+            }
+            
+            if (hasCustomCorsHeaders) {
+                return originalXhrSend.apply(this, arguments);
+            }
+        } catch(e) {
+            // Ignore errors and proceed with interception
         }
 
         const id = Math.random().toString(36).substr(2);

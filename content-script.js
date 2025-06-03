@@ -70,19 +70,66 @@ if (!window.ngAntiCorsActive) {
 
         appendNotification();
     }
-
-    chrome.runtime.sendMessage({ action: "getSettings" }, (settings) => {
-        if (!settings) {
-            settings = { showNotification: true, notificationDuration: 5 };
+    
+    const domain = extractDomain(window.location.href);    chrome.runtime.sendMessage({ action: "getDomainState", domain }, (domainState) => {
+        if (!domainState || !domainState.state) {
+            return; // Don't show notification if CORS is not enabled for this domain
         }
-
-        try {
-            const domain = window.location.hostname || 'unknown';
-            showNotification(domain, settings);
-        } catch (error) {
-            console.error("Error showing notification:", error);
+        
+        // Check if we should show a notification based on CORS detection
+        function shouldShowCorsNotification() {
+            try {
+                // Skip notifications for domains with their own CORS implementation
+                const hostname = new URL(window.location.href).hostname.toLowerCase();
+                const excludedDomains = [
+                    "youtube.com",
+                    "google.com",
+                    "gstatic.com",
+                    "ytimg.com",
+                    "googleapis.com",
+                    "doubleclick.net",
+                    "ggpht.com"
+                ];
+                
+                if (excludedDomains.some(d => hostname.includes(d))) {
+                    console.log("Skipping notification for domain with custom CORS implementation");
+                    return false;
+                }
+                
+                // Check if the page has CORS-related headers or meta tags
+                const corsMetaTags = document.querySelectorAll('meta[http-equiv="Access-Control-Allow-Origin"]');
+                if (corsMetaTags.length > 0) {
+                    console.log("Detected CORS meta tags, skipping notification");
+                    return false;
+                }
+                
+                return true;
+            } catch (e) {
+                console.error("Error checking CORS implementation:", e);
+                return true; // Default to showing notification if check fails
+            }
         }
-    }); chrome.runtime.onMessage.addListener((message) => {
+        
+        if (!shouldShowCorsNotification()) {
+            return;
+        }
+        
+        chrome.runtime.sendMessage({ action: "getSettings" }, (settings) => {
+            if (!settings) {
+                settings = { showNotification: true, notificationDuration: 5 };
+            }
+
+            try {
+                if (settings.showNotification) {
+                    showNotification(domain, settings);
+                }
+            } catch (error) {
+                console.error("Error showing notification:", error);
+            }
+        });
+    });
+    
+    chrome.runtime.onMessage.addListener((message) => {
         if (message.action === "settingsChanged") {
             const settings = message.settings;
         }
@@ -105,6 +152,7 @@ if (!window.ngAntiCorsActive) {
         }
         return false;
     });
+
     window.addEventListener('message', (event) => {
         if (event.source === window && event.data?.type === 'FETCH_REQUEST') {
             if (!window.ngAntiCorsEnabled) {
@@ -192,9 +240,30 @@ if (!window.ngAntiCorsActive) {
             return "";
         }
     }
+    
+    // Check if we're on a protected domain (Chrome Web Store, Extensions, etc.)
+    function isProtectedDomain(url) {
+        if (!url) return false;
+        try {
+            const hostname = new URL(url).hostname;
+            if (hostname === 'chrome.google.com') return true;
+            if (url.startsWith('chrome://')) return true;
+            if (url.startsWith('chrome-extension://')) return true;
+            return false;
+        } catch (e) {
+            return false;
+        }
+    }
 
-    const currentDomain = extractDomain(window.location.href);
-    try {
+    const currentDomain = extractDomain(window.location.href);    // Skip if we're on a protected domain
+    let isProtected = false; // Define the variable outside of if blocks so it has proper scope
+    if (isProtectedDomain(window.location.href)) {
+        console.log(`NG-Anti-CORS: Skipping protected domain: ${currentDomain}`);
+        isProtected = true;
+    }
+    
+    if (!isProtected) { // Only continue if not a protected domain
+        try {
         chrome.runtime.sendMessage({ action: 'getDomainState', domain: currentDomain }, (response) => {
             if (chrome.runtime.lastError) {
                 console.error('NG-Anti-CORS: Extension error:', chrome.runtime.lastError);
@@ -217,8 +286,8 @@ if (!window.ngAntiCorsActive) {
                     preflightEnabled: window.ngAntiCorsPreflightEnabled
                 }, '*');
             };
-        });
-    } catch (error) {
+        });    } catch (error) {
         console.error('NG-Anti-CORS: Failed to communicate with extension:', error);
     }
+    } // Close the if(!isProtected) block
 }

@@ -1,8 +1,8 @@
-# NG-Anti-CORS 1.2 🛡️ 
+# NG-Anti-CORS 1.3 🛡️ 
 
 ## The Ultimate CORS Enabler for Developers 🚀
 
-![Version](https://img.shields.io/badge/version-1.2-blue)
+![Version](https://img.shields.io/badge/version-1.3-blue)
 ![Chrome](https://img.shields.io/badge/Chrome-supported-green)
 ![Opera](https://img.shields.io/badge/Opera-supported-green)
 
@@ -108,6 +108,16 @@ This plugin is especially useful for:
 ⚠️ **Security Notice**: This plugin is intended for development and testing purposes. Disable it when visiting sensitive websites as it affects the browser's security mechanisms.
 
 ## Version History 📝
+
+### Version 1.3
+- **Bug Fixes**: Fixed unwanted notifications showing up for domains where CORS is not active
+- **Improved Compatibility**: Fixed issues with YouTube and Google services by not interfering with their CORS implementation
+- **Smart Domain Detection**: Added intelligent detection of sites with existing CORS handling
+- **Enhanced Notification System**: Notifications now only appear when appropriate and respect user settings
+- **Protected Domain Handling**: Better handling of domains with sensitive CORS requirements
+- **Header Handling Improvements**: Changed header operations from APPEND to SET to avoid duplication
+- **Conflict Resolution**: Added unique rule IDs to avoid conflicts with other extensions
+- **Performance Optimization**: Skip processing on domains that don't need CORS modification
 
 ### Version 1.2
 - **Two-tier CORS Handling**: Separated basic CORS handling from advanced preflight handling

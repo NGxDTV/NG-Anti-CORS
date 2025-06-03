@@ -1,6 +1,5 @@
-{
-    "name": "NG-Anti-CORS",
-    "version": "1.2",
+{    "name": "NG-Anti-CORS",
+    "version": "1.3",
     "description": "Bypass CORS restrictions with one click. Perfect developer tool for testing APIs and debugging applications locally.",
     "manifest_version": 3,
     "background": {
@@ -24,11 +23,19 @@
             "128": "images/icon-red-128.png"
         },
         "default_popup": "popup.html"
-    },
-    "content_scripts": [
+    },    "content_scripts": [
         {
             "matches": [
                 "<all_urls>"
+            ],
+            "exclude_matches": [
+                "*://chrome.google.com/*",
+                "*://*.google.com/webstore/*",
+                "*://*.youtube.com/*",
+                "*://*.ytimg.com/*",
+                "*://*.googlevideo.com/*",
+                "*://*.ggpht.com/*",
+                "*://apis.google.com/*"
             ],
             "js": [
                 "content-script.js"
